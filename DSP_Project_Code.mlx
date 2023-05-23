@@ -1,0 +1,90 @@
+a = imread('C:\Users\hamza\Downloads\New folder\im1.jpeg');
+a = imresize(a, [512, 512]);  % Resize image to 512x512
+
+% Convert RGB image to YCbCr color space
+ycbcr = rgb2ycbcr(a);
+
+% Separate color channels
+Y = double(ycbcr(:, :, 1));
+Cb = double(ycbcr(:, :, 2));
+Cr = double(ycbcr(:, :, 3));
+
+% Block processing for Y channel
+b = double(zeros(8, 8, 4096));
+c = double(zeros(8, 8, 4096));
+idx = 1;
+for i = 1:8:512
+    for j = 1:8:512
+        block = Y(i:i+7, j:j+7) - 128;
+        b(:, :, idx) = block;
+        idx = idx + 1;
+    end
+end
+
+for k = 1:4096
+    c(:, :, k) = dct2(b(:, :, k));
+end
+
+s1 = zeros(512, 512);
+idx = 1;
+for i = 1:8:512
+    for j = 1:8:512
+        s1(i:i+7, j:j+7) = c(:, :, idx);
+        idx = idx + 1;
+    end
+end
+
+m = [16 11 10 16 24 40 51 61;
+     12 12 14 19 26 58 60 55;
+     14 13 16 24 40 57 69 56;
+     14 17 22 29 51 87 80 62; 
+     18 22 37 56 68 109 103 77; 
+     24 35 55 64 81 104 113 92; 
+     49 64 78 87 103 121 120 101;
+     72 92 95 98 112 100 103 99];
+
+m = double(m);
+
+d = c;
+for k = 1:4096
+    d(:, :, k) = round(c(:, :, k) ./ m);
+end
+
+e = d;
+for k = 1:4096
+    e(:, :, k) = round(d(:, :, k) .* m);
+end
+
+f = double(zeros(8, 8, 4096));
+for k = 1:4096
+    f(:, :, k) = idct2(e(:, :, k));
+end
+
+f = f + 128;
+
+s2 = zeros(512, 512);
+idx = 1;
+for i = 1:8:512
+    for j = 1:8:512
+        s2(i:i+7, j:j+7) = f(:, :, idx);
+        idx = idx + 1;
+    end
+end
+% Combine processed channels to form the recovered image
+recovered_ycbcr = ycbcr;
+recovered_ycbcr(:, :, 1) = s2;
+recovered_rgb = ycbcr2rgb(uint8(recovered_ycbcr));
+figure;
+imshow(a);
+title('ORIGINAL INPUT IMAGE');
+
+figure;
+imshow(s1, []);
+title('DCT IMAGE');
+figure;
+imshow(recovered_rgb);
+title('RECOVERED IMAGE (JPEG IMAGE COMPRESSION)');
+
+figure;
+imshow(recovered_rgb - a);
+title('ERROR IMAGE');
